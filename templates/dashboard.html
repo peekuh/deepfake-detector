@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Your Images</h2>
+<div class="mb-4">
+    <a href="{% url 'upload' %}" class="btn btn-primary">Upload New Image</a>
+</div>
+
+{% if images %}
+    <div class="row">
+        {% for image in images %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <img src="{{ image.image.url }}" class="card-img-top" alt="Uploaded image">
+                    <div class="card-body">
+                        <h5 class="card-title">Uploaded on {{ image.uploaded_at|date:"F d, Y" }}</h5>
+                        {% if image.is_analyzed %}
+                            {% if image.is_deepfake %}
+                                <div class="alert alert-danger">Deepfake Detected!</div>
+                            {% else %}
+                                <div class="alert alert-success">Authentic Image</div>
+                            {% endif %}
+                        {% else %}
+                            <div class="alert alert-warning">Analysis Pending</div>
+                        {% endif %}
+
+                        <!-- Delete Button (Form) -->
+                        <form method="post" action="{% url 'delete_image' image.id %}" class="mt-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        You haven't uploaded any images yet. <a href="{% url 'upload' %}">Upload your first image</a>.
+    </div>
+{% endif %}
+{% endblock %}

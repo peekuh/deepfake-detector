@@ -1,0 +1,8 @@
+deepfakenv
+.env
+media
+migrations/
+_pycache_
+*.pyc
+.pyc
+db.sqlite3
