@@ -34,7 +34,7 @@ def upload_image(request):
             image.user = request.user
             image.save()
             
-            # Analyze the uploaded image
+            # Analyze the uploaded image immediately (this can be removed if you prefer to analyze only on demand)
             try:
                 is_deepfake, confidence, heatmap_content = analyze_image(image.image.path)
                 
@@ -79,3 +79,32 @@ def delete_image(request, image_id):
     # If it's a GET request, you might want to show a confirmation page
     # (optional, but good practice)
     return render(request, 'confirm_delete.html', {'image': image})  # Create a template named confirm_delete.html
+
+@login_required
+def image_analysis(request, image_id):
+    """
+    Display a detailed analysis of an image, including the Grad-CAM heatmap.
+    """
+    image = get_object_or_404(UploadedImage, pk=image_id, user=request.user)  # Ensure user owns the image
+    
+    # If the image hasn't been analyzed yet, analyze it now
+    if not image.is_analyzed and not image.heatmap_image:
+        try:
+            is_deepfake, confidence, heatmap_content = analyze_image(image.image.path)
+            
+            image.is_analyzed = True
+            image.is_deepfake = is_deepfake
+            image.confidence_score = confidence
+            
+            if heatmap_content:
+                filename = f"heatmap_{image.id}.jpg"
+                image.heatmap_image.save(filename, heatmap_content)
+            
+            image.save()
+            
+            messages.success(request, 'Image analysis completed.')
+        except Exception as e:
+            messages.warning(request, f'Analysis failed: {str(e)}')
+            print(f"Error analyzing image: {str(e)}")
+    
+    return render(request, 'image_analysis.html', {'image': image})

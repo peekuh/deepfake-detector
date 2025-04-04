@@ -9,5 +9,6 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('upload/', views.upload_image, name='upload'),
-    path('delete_image/<int:image_id>/', views.delete_image, name='delete_image'), 
+    path('delete_image/<int:image_id>/', views.delete_image, name='delete_image'),
+    path('image_analysis/<int:image_id>/', views.image_analysis, name='image_analysis'),
 ]

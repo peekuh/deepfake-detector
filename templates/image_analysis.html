@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <div class="mb-3">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left mr-1"></i> Back to Dashboard
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h2>
+                Image Analysis
+                {% if image.is_analyzed %}
+                    {% if image.is_deepfake %}
+                        <span class="badge bg-danger">Deepfake</span>
+                    {% else %}
+                        <span class="badge bg-success">Authentic</span>
+                    {% endif %}
+                {% endif %}
+            </h2>
+        </div>
+        
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 class="mb-3">Original Image</h4>
+                    <img src="{{ image.image.url }}" class="img-fluid rounded" alt="Original image">
+                    <p class="mt-2 text-muted">Uploaded on {{ image.uploaded_at|date:"F d, Y" }}</p>
+                </div>
+                
+                <div class="col-md-6">
+                    <h4 class="mb-3">Analysis Results</h4>
+                    
+                    {% if image.is_analyzed %}
+                        <div class="alert {% if image.is_deepfake %}alert-danger{% else %}alert-success{% endif %}">
+                            <h5>
+                                {% if image.is_deepfake %}
+                                    Deepfake Detected!
+                                {% else %}
+                                    Authentic Image
+                                {% endif %}
+                            </h5>
+                            <p class="mb-0">
+                                <strong>Confidence Score:</strong> {{ image.confidence_score|floatformat:4 }}
+                                ({{ image.confidence_score|floatformat:2 }})
+                            </p>
+                        </div>
+                        
+                        {% if image.heatmap_image %}
+                            <div class="mt-4">
+                                <h4>Heatmap Visualization (Grad-CAM)</h4>
+                                <img src="{{ image.heatmap_image.url }}" class="img-fluid rounded" alt="Feature heatmap">
+                                <div class="mt-2">
+                                    <h5>What is this visualization?</h5>
+                                    <p>
+                                        The heatmap shows areas of the image that most influenced the model's decision:
+                                    </p>
+                                    <ul>
+                                        <li><strong>Red/yellow areas:</strong> These regions had the strongest influence on the model's decision.</li>
+                                        <li><strong>Blue/green areas:</strong> These regions had less influence on the classification.</li>
+                                    </ul>
+                                    <p>
+                                        In deepfake detection, the model often focuses on inconsistencies in facial features, 
+                                        unusual blending boundaries, or artifacts that are typical of synthetic images.
+                                    </p>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                Heatmap visualization is not available for this image.
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            This image has not been analyzed yet. Please wait for the analysis to complete.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
