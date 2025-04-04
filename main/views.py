@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .forms import UserRegisterForm, ImageUploadForm
 from .models import UploadedImage
+from .utils import analyze_image
 
 def home(request):
     return render(request, 'home.html')
@@ -32,7 +33,31 @@ def upload_image(request):
             image = form.save(commit=False)
             image.user = request.user
             image.save()
-            messages.success(request, 'Image uploaded successfully!')
+            
+            # Analyze the uploaded image
+            try:
+                is_deepfake, confidence, heatmap_content = analyze_image(image.image.path)
+                
+                # Update the image record with analysis results
+                image.is_analyzed = True
+                image.is_deepfake = is_deepfake
+                image.confidence_score = confidence
+                
+                # Save the heatmap if generated
+                if heatmap_content:
+                    filename = f"heatmap_{image.id}.jpg"
+                    image.heatmap_image.save(filename, heatmap_content)
+                
+                image.save()
+                
+                messages.success(
+                    request, 
+                    f'Image analyzed successfully! {"This appears to be a deepfake" if is_deepfake else "This appears to be authentic"} (confidence: {confidence:.2%})'
+                )
+            except Exception as e:
+                messages.warning(request, f'Image uploaded but analysis failed: {str(e)}')
+                print(f"Error: {str(e)}")
+            
             return redirect('dashboard')
     else:
         form = ImageUploadForm()

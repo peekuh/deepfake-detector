@@ -15,9 +15,30 @@
                         <h5 class="card-title">Uploaded on {{ image.uploaded_at|date:"F d, Y" }}</h5>
                         {% if image.is_analyzed %}
                             {% if image.is_deepfake %}
-                                <div class="alert alert-danger">Deepfake Detected!</div>
+                                <div class="alert alert-danger">
+                                    <strong>Deepfake Detected!</strong>
+                                    {% if image.confidence_score %}
+                                    <br>Confidence: {{ image.confidence_score|floatformat:2 }}
+                                    {% endif %}
+                                </div>
                             {% else %}
-                                <div class="alert alert-success">Authentic Image</div>
+                                <div class="alert alert-success">
+                                    <strong>Authentic Image</strong>
+                                    {% if image.confidence_score %}
+                                    <br>Confidence: {{ image.confidence_score|floatformat:2 }}
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            
+                            {% if image.heatmap_image %}
+                            <div class="mt-3">
+                                <p><strong>Features analyzed by the model:</strong></p>
+                                <img src="{{ image.heatmap_image.url }}" class="img-fluid" alt="Feature heatmap">
+                                <p class="text-muted small mt-1">
+                                    Heatmap shows areas the model focused on to make its decision. 
+                                    Red areas had the most influence.
+                                </p>
+                            </div>
                             {% endif %}
                         {% else %}
                             <div class="alert alert-warning">Analysis Pending</div>
