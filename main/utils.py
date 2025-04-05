@@ -10,6 +10,9 @@ import cv2
 from matplotlib import cm
 import io
 from django.core.files.base import ContentFile
+import matplotlib
+matplotlib.use('Agg')  # Set backend first
+from . import radialProfile  # Import the module we just created
 
 # Path to your model file
 MODEL_PATH = os.path.join(settings.BASE_DIR, 'My_model.keras')
@@ -47,12 +50,12 @@ def analyze_image(img_path):
     """
     Analyze an image to detect if it's a deepfake
     Returns:
-        tuple: (is_deepfake (bool), confidence (float), heatmap_content_file (ContentFile))
+        tuple: (is_deepfake (bool), confidence (float), heatmap_content_file, frequency_content_file, high_pass_content_file)
     """
     model = get_model()
     
     if model is None:
-        return False, 0.0, None
+        return False, 0.0, None, None, None
     
     # Preprocess the image
     processed_img = preprocess_image(img_path)
@@ -64,18 +67,26 @@ def analyze_image(img_path):
     confidence = float(prediction[0][0])
     is_deepfake = confidence > 0.5
     
-    # Print prediction details for debugging
-    print(f"Prediction shape: {prediction.shape}, value: {prediction}")
-    
-    # Generate Grad-CAM visualization
+    # Generate visualizations
     try:
         heatmap_content = generate_gradcam(model, processed_img, img_path, is_deepfake)
     except Exception as e:
         print(f"Error generating Grad-CAM: {e}")
-        # Fall back to simpler visualization
         heatmap_content = generate_simple_visualization(img_path, is_deepfake, confidence)
     
-    return is_deepfake, confidence, heatmap_content
+    try:
+        frequency_content = generate_frequency_analysis(img_path)
+    except Exception as e:
+        print(f"Error generating frequency analysis: {e}")
+        frequency_content = None
+    
+    try:
+        high_pass_content = generate_high_pass_filtered_image(img_path)
+    except Exception as e:
+        print(f"Error generating high-pass filter: {e}")
+        high_pass_content = None
+    
+    return is_deepfake, confidence, heatmap_content, frequency_content, high_pass_content
 
 def find_target_layer(model):
     """Find the last convolutional layer in the model"""
@@ -218,6 +229,144 @@ def generate_simple_visualization(img_path, is_deepfake, confidence):
     buf = io.BytesIO()
     plt.savefig(buf, format='jpg', bbox_inches='tight')
     plt.close()
+    buf.seek(0)
+    
+    # Create a ContentFile
+    content_file = ContentFile(buf.getvalue())
+    return content_file
+
+def generate_frequency_analysis(img_path):
+    """
+    Generate spatial frequency analysis visualization
+    Returns a Django ContentFile with the visualization
+    """
+    # Read image in grayscale
+    img = cv2.imread(img_path, 0)  # 0 for grayscale
+    # Also read color image for display
+    img_color = cv2.imread(img_path)
+    img_color = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
+    
+    # Calculate FFT
+    epsilon = 1e-8  # Small value to avoid log(0)
+    f = np.fft.fft2(img)
+    fshift = np.fft.fftshift(f)
+    fshift += epsilon
+    magnitude_spectrum = 20 * np.log(np.abs(fshift))
+    
+    # Calculate the azimuthally averaged 1D power spectrum
+    psd1D = radialProfile.azimuthalAverage(magnitude_spectrum)
+    
+    # Create visualization
+    fig = plt.figure(figsize=(15, 5))
+    
+    # Original image
+    ax1 = fig.add_subplot(121)
+    ax1.imshow(img_color)
+    ax1.set_title('Original Image', size=15)
+    ax1.axis('off')
+    
+    # Power spectrum
+    ax2 = fig.add_subplot(122)
+    ax2.plot(psd1D)
+    ax2.set_title('1D Power Spectrum', size=15)
+    ax2.set_xlabel('Spatial Frequency')
+    ax2.set_ylabel('Power Spectrum')
+    
+    plt.tight_layout()
+    
+    # Save to a buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='jpg', bbox_inches='tight', dpi=100)
+    plt.close(fig)
+    buf.seek(0)
+    
+    # Create a ContentFile
+    content_file = ContentFile(buf.getvalue())
+    return content_file
+
+def create_circular_mask(h, w, center=None, radius=None):
+    """
+    Create a circular mask for filtering in the frequency domain
+    """
+    if center is None:  # use the middle of the image
+        center = [int(w/2), int(h/2)]
+    if radius is None:  # use the smallest distance between the center and image walls
+        radius = min(center[0], center[1], w-center[0], h-center[1])
+
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    mask = dist_from_center <= radius
+    return mask
+
+def high_pass_filter(img_channel, mask):
+    """
+    Apply high-pass filter to an image channel using FFT
+    """
+    f = np.fft.fft2(img_channel)
+    fshift = np.fft.fftshift(f)
+    # Make sure mask is the right size
+    if mask.shape != fshift.shape:
+        mask_resized = cv2.resize(mask.astype(np.uint8), (fshift.shape[1], fshift.shape[0]))
+    else:
+        mask_resized = mask
+    fshift_filtered = fshift * mask_resized
+    f_ishift = np.fft.ifftshift(fshift_filtered)
+    img_back = np.abs(np.fft.ifft2(f_ishift))
+    return img_back
+
+def generate_high_pass_filtered_image(img_path):
+    """
+    Generate a high-pass filtered version of the image
+    Returns a Django ContentFile with the visualization
+    """
+    # Read image
+    img_color = cv2.imread(img_path)
+    img_color = cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB)
+    
+    # Normalize to 0-1 range if needed
+    if img_color.dtype == np.uint8:
+        img_color = img_color / 255.0
+    
+    # Get dimensions
+    h, w, _ = img_color.shape
+    
+    # Create inverted circular mask for high-pass filtering
+    mask = create_circular_mask(h, w, radius=0.1 * min(h, w))  # Small radius to keep more high frequencies
+    mask = np.invert(mask)  # Invert to keep high-frequency details
+    
+    # Split channels
+    img_r, img_g, img_b = img_color[:,:,0], img_color[:,:,1], img_color[:,:,2]
+    
+    # Apply high-pass filtering to each channel
+    img_back_r = high_pass_filter(img_r, mask)
+    img_back_g = high_pass_filter(img_g, mask)
+    img_back_b = high_pass_filter(img_b, mask)
+    
+    # Merge channels
+    filtered_img = np.dstack([img_back_r, img_back_g, img_back_b])
+    
+    # Normalize for visualization
+    filtered_img = filtered_img / filtered_img.max()
+    
+    # Create visualization
+    fig, axes = plt.subplots(1, 2, figsize=(15, 7))
+    
+    axes[0].imshow(img_color)
+    axes[0].set_title('Original Image', size=15)
+    axes[0].axis('off')
+    
+    axes[1].imshow(filtered_img)
+    axes[1].set_title('High-Pass Filtered Image', size=15)
+    axes[1].axis('off')
+    
+    plt.suptitle("High-Frequency Components Analysis", fontsize=18)
+    plt.tight_layout()
+    
+    # Save to a buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='jpg', bbox_inches='tight', dpi=100)
+    plt.close(fig)
     buf.seek(0)
     
     # Create a ContentFile

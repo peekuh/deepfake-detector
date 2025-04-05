@@ -10,6 +10,8 @@ class UploadedImage(models.Model):
     is_deepfake = models.BooleanField(null=True, blank=True)
     confidence_score = models.FloatField(null=True, blank=True)  # Store the confidence score
     heatmap_image = models.ImageField(upload_to='heatmaps/', null=True, blank=True)  # Add this field
+    frequency_image = models.ImageField(upload_to='frequency/', null=True, blank=True)  # New field
+    high_pass_image = models.ImageField(upload_to='high_pass/', null=True, blank=True)  # New field
     
     def __str__(self):
         return f"{self.user.username}'s image ({self.uploaded_at})"

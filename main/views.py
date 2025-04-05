@@ -34,9 +34,9 @@ def upload_image(request):
             image.user = request.user
             image.save()
             
-            # Analyze the uploaded image immediately (this can be removed if you prefer to analyze only on demand)
+            # Analyze the uploaded image
             try:
-                is_deepfake, confidence, heatmap_content = analyze_image(image.image.path)
+                is_deepfake, confidence, heatmap_content, frequency_content, high_pass_content = analyze_image(image.image.path)
                 
                 # Update the image record with analysis results
                 image.is_analyzed = True
@@ -47,6 +47,16 @@ def upload_image(request):
                 if heatmap_content:
                     filename = f"heatmap_{image.id}.jpg"
                     image.heatmap_image.save(filename, heatmap_content)
+                
+                # Save the frequency analysis if generated
+                if frequency_content:
+                    filename = f"frequency_{image.id}.jpg"
+                    image.frequency_image.save(filename, frequency_content)
+                
+                # Save the high-pass filter image if generated
+                if high_pass_content:
+                    filename = f"high_pass_{image.id}.jpg"
+                    image.high_pass_image.save(filename, high_pass_content)
                 
                 image.save()
                 
@@ -88,9 +98,9 @@ def image_analysis(request, image_id):
     image = get_object_or_404(UploadedImage, pk=image_id, user=request.user)  # Ensure user owns the image
     
     # If the image hasn't been analyzed yet, analyze it now
-    if not image.is_analyzed and not image.heatmap_image:
+    if not image.is_analyzed:
         try:
-            is_deepfake, confidence, heatmap_content = analyze_image(image.image.path)
+            is_deepfake, confidence, heatmap_content, frequency_content, high_pass_content = analyze_image(image.image.path)
             
             image.is_analyzed = True
             image.is_deepfake = is_deepfake
@@ -100,6 +110,14 @@ def image_analysis(request, image_id):
                 filename = f"heatmap_{image.id}.jpg"
                 image.heatmap_image.save(filename, heatmap_content)
             
+            if frequency_content:
+                filename = f"frequency_{image.id}.jpg"
+                image.frequency_image.save(filename, frequency_content)
+            
+            if high_pass_content:
+                filename = f"high_pass_{image.id}.jpg"
+                image.high_pass_image.save(filename, high_pass_content)
+            
             image.save()
             
             messages.success(request, 'Image analysis completed.')
@@ -107,4 +125,12 @@ def image_analysis(request, image_id):
             messages.warning(request, f'Analysis failed: {str(e)}')
             print(f"Error analyzing image: {str(e)}")
     
-    return render(request, 'image_analysis.html', {'image': image})
+    # Calculate percentage for display
+    confidence_percentage = None
+    if image.confidence_score is not None:
+        confidence_percentage = f"{image.confidence_score * 100:.2f}%"
+    
+    return render(request, 'image_analysis.html', {
+        'image': image,
+        'confidence_percentage': confidence_percentage
+    })

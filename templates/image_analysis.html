@@ -43,7 +43,7 @@
                             </h5>
                             <p class="mb-0">
                                 <strong>Confidence Score:</strong> {{ image.confidence_score|floatformat:4 }}
-                                ({{ image.confidence_score|floatformat:2 }})
+                                {% if confidence_percentage %}({{ confidence_percentage }}){% endif %}
                             </p>
                         </div>
                         
@@ -78,6 +78,74 @@
                     {% endif %}
                 </div>
             </div>
+            
+            <!-- Visualizations Section -->
+            {% if image.is_analyzed %}
+                <!-- Frequency Analysis -->
+                {% if image.frequency_image %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="mb-0">Spatial Frequency Analysis</h4>
+                                </div>
+                                <div class="card-body">
+                                    <img src="{{ image.frequency_image.url }}" class="img-fluid rounded" alt="Frequency analysis">
+                                    <div class="mt-3">
+                                        <h5>What is this visualization?</h5>
+                                        <p>
+                                            The spatial frequency analysis shows how image information is distributed across 
+                                            different frequency bands:
+                                        </p>
+                                        <ul>
+                                            <li><strong>Left side (low frequencies):</strong> Represents large-scale structures and overall image patterns</li>
+                                            <li><strong>Right side (high frequencies):</strong> Represents fine details and edges</li>
+                                        </ul>
+                                        <p>
+                                            Deepfake images often show characteristic patterns in their frequency spectrum that differ 
+                                            from authentic images. Artificial generation processes can leave traces that are visible 
+                                            in the power spectrum, even when they may not be apparent to the human eye.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <!-- High-Pass Filter Analysis -->
+                {% if image.high_pass_image %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="mb-0">High-Pass Filter Analysis</h4>
+                                </div>
+                                <div class="card-body">
+                                    <img src="{{ image.high_pass_image.url }}" class="img-fluid rounded" alt="High-pass filter analysis">
+                                    <div class="mt-3">
+                                        <h5>What is this visualization?</h5>
+                                        <p>
+                                            The high-pass filter removes low-frequency components from the image, 
+                                            emphasizing edges, textures, and fine details:
+                                        </p>
+                                        <ul>
+                                            <li><strong>Original image (left):</strong> Shows the complete image with all frequency components</li>
+                                            <li><strong>Filtered image (right):</strong> Shows only the high-frequency components</li>
+                                        </ul>
+                                        <p>
+                                            This visualization helps reveal inconsistencies and artifacts that are often 
+                                            introduced during the deepfake generation process. Authentic images typically 
+                                            have natural high-frequency patterns, while deepfakes may show unnatural 
+                                            boundaries, smoothing artifacts, or inconsistent noise patterns.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endif %}
         </div>
     </div>
 </div>
